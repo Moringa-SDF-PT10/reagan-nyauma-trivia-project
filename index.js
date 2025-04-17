@@ -118,7 +118,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const scores = document.createElement("p");
 
       let cumulativeText;
-      if (cumulativeTime === 0) {
+      if (cumulativeTime === 60) {
         cumulativeText = "1 minute";
       } else if (cumulativeTime > 60) {
         const mins = Math.floor(cumulativeTime / 60);
