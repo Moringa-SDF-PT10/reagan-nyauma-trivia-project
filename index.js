@@ -7,11 +7,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const cat = document.querySelector("#category");
   const diff = document.querySelector("#difficulty");
   const type = document.querySelector("#type");
-
-  // Get form container div
   const setupDiv = document.querySelector("#setup");
 
-  // Initialize relevant arrays
+  // declare/initialize global variables
+  let queNo = 0;
+  let score = 0;
+  let restart = 0;
+  let cumulativeTime = 0;
+  let answered = 0;
+  let time;
+  let isQuizRunning = false;
   let questionsArray = [];
   let answersArray = [];
   let correctAnswer = [];
@@ -21,8 +26,15 @@ document.addEventListener("DOMContentLoaded", () => {
   submit.addEventListener("click", async (event) => {
     event.preventDefault();
 
-    // Declare variables for dynamically editing the API URL
-    let numValue = num.value === "any" ? "" : `amount=${num.value}`;
+    // protect against multiple simultaneous fetches
+    submit.disabled = true;
+    submit.value = "Loading...";
+
+    clearInterval(time);
+    time = null;
+
+    // dynamically update variables for editing the API URL
+    let numValue = `amount=${num.value}`;
     let catValue = cat.value === "any" ? "" : `category=${cat.value}`;
     let diffValue = diff.value === "any" ? "" : `difficulty=${diff.value}`;
     let typeValue = type.value === "any" ? "" : `type=${type.value}`;
@@ -35,20 +47,32 @@ document.addEventListener("DOMContentLoaded", () => {
     correctAnswer = [];
     queAnswers = [];
 
-    const triviaResponse = await fetch(questionsURL);
-    const data = await triviaResponse.json();
-    prepareQuizData(data);
+    // Attempt to fetch the trivia questions & answers
+    try {
+      const triviaResponse = await fetch(questionsURL);
+      if (!triviaResponse.ok) {
+        throw new Error(`HTTP error! Status: ${triviaResponse.status}`);
+      }
+      const data = await triviaResponse.json();
+      if (data.response_code !== 0) {
+        throw new Error(
+          `No questions found for the given criteria. Try making different selections.`
+        );
+      }
+      prepareQuizData(data);
 
-    for (let i = 0; i < questionsArray.length; i++) {
-      const currentQuestion = questionsArray[i];
-      const currentAnswers = answersArray[i];
-      queAnswers.push({ question: currentQuestion, answers: currentAnswers });
+      setupDiv.style.zIndex = -50;
+      displayQuestions();
+    } catch (err) {
+      alert(err);
+    } finally {
+      submit.disabled = false;
+      submit.value = 'START QUIZ';
+      isQuizRunning = false;
     }
-
-    setupDiv.style.zIndex = -50;
-    displayQuestions();
   });
 
+  // prepare the data for easy/convenient access and retrieval
   const prepareQuizData = (questions) => {
     questions.results.forEach((question) => {
       questionsArray.push(question.question);
@@ -58,6 +82,12 @@ document.addEventListener("DOMContentLoaded", () => {
       ]);
       correctAnswer.push(question.correct_answer);
     });
+
+    for (let i = 0; i < questionsArray.length; i++) {
+      const currentQuestion = questionsArray[i];
+      const currentAnswers = answersArray[i];
+      queAnswers.push({ question: currentQuestion, answers: currentAnswers });
+    }
   };
 
   // Enforce maximum number of questions
@@ -69,50 +99,46 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // create the retry button
   const main = document.querySelector("#start-restart");
+  const restartBtn = document.createElement("input");
+  restartBtn.type = "button";
+  restartBtn.value = "TRY ANOTHER QUIZ";
+  restartBtn.id = "start-btn";
+  restartBtn.classList.add("main-btn");
 
-  const startBtn = document.createElement("input");
-  startBtn.type = "button";
-  startBtn.value = "TRY ANOTHER QUIZ";
-  startBtn.id = "start-btn";
-  startBtn.classList.add("main-btn");
+  main.appendChild(restartBtn);
 
-  main.appendChild(startBtn);
-
-  // Make START button interactive
-  startBtn.addEventListener("click", () => {
-    if (startBtn.value === "NEW QUIZ") {
-      startBtn.value = "TRY ANOTHER QUIZ";
+  // Make restart button interactive
+  restartBtn.addEventListener("click", () => {
+    if (restartBtn.value === "NEW QUIZ") {
+      restartBtn.value = "TRY ANOTHER QUIZ";
       setupDiv.style.zIndex = 50;
     } else {
-      startBtn.value = "NEW QUIZ";
-      giveUp = 1;
+      restartBtn.value = "NEW QUIZ";
+      restart = 1;
       displayQuestions();
     }
   });
 
-  let queNo = 0;
-  let score = 0;
-  let giveUp = 0;
-  let cumulativeTime = 0;
-  let answered = 0;
-  let time;
-
   // Populate the page with correct question and answers
   function displayQuestions() {
+    isQuizRunning = true;
+    clearInterval(time);
     // Important divs to make the output work
     const aDiv = document.createElement("div");
     const ansDiv = document.querySelector("#answers");
     const queDiv = document.querySelector("#questions");
     const timer = document.querySelector("#timer");
 
-    // Check if the questions have been exhausted or giveUp has been clicked
-    if (queNo === questionsArray.length || giveUp === 1) {
+    // Check if the questions have been exhausted or restart has been clicked
+    if (queNo === questionsArray.length || restart === 1) {
+      // clear the questions, timer and answers divs
       queDiv.innerHTML = "";
       ansDiv.innerHTML = "";
       timer.innerHTML = "";
-      clearInterval(time);
-      startBtn.value = "NEW QUIZ";
+
+      restartBtn.value = "NEW QUIZ";
 
       const resultP = document.createElement("p");
       const scores = document.createElement("p");
@@ -127,10 +153,10 @@ document.addEventListener("DOMContentLoaded", () => {
           mins === 1 ? "minute" : "minutes"
         } and ${secs} seconds`;
       } else {
-        const secs = cumulativeTime;
-        cumulativeText = `${secs} seconds`;
+        cumulativeText = `${cumulativeTime} seconds`;
       }
 
+      // only show results if at least one question has been attempted
       if (queNo <= 0) {
         setupDiv.style.zIndex = 50;
       } else {
@@ -144,10 +170,11 @@ document.addEventListener("DOMContentLoaded", () => {
       ansDiv.appendChild(scores);
 
       // Reset tracking variables for a new attempt
-      giveUp = 0;
+      restart = 0;
       queNo = 0;
       score = 0;
       cumulativeTime = 0;
+      isQuizRunning = false;
     } else {
       answered = 0;
       // Display a question
@@ -162,15 +189,6 @@ document.addEventListener("DOMContentLoaded", () => {
       // Clear previous answers
       ansDiv.innerHTML = "";
 
-      // Randomize the order of answers
-      if (queAnswers.length > 0) {
-        queAnswers[queNo].answers.sort(() => Math.random() - 0.5);
-      } else {
-        return alert(
-          `Sorry, we're still working on that combination. Try changing your selections.`
-        );
-      }
-
       // Prepare correct answer for answer checker and per-question timer
       aDiv.innerHTML = correctAnswer[queNo];
       let rightOne = aDiv.textContent;
@@ -179,6 +197,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const resetTimer = () => {
         clearInterval(time);
         timer.innerHTML = "";
+        isQuizRunning = false;
         alert(`Time's up! The correct answer is ${rightOne}.`);
       };
 
@@ -191,6 +210,7 @@ document.addEventListener("DOMContentLoaded", () => {
       countdown.textContent = `Time left: ${timeTracker}`;
       timer.appendChild(countdown);
 
+      // Time display logic
       time = setInterval(() => {
         if (answered === 1) {
           clearInterval(time);
@@ -199,7 +219,7 @@ document.addEventListener("DOMContentLoaded", () => {
         timeTracker--;
         countdown.textContent = `Time left: ${timeTracker}`;
         if (timeTracker < 0) {
-          cumulativeTime += allowedTime - timeTracker;
+          cumulativeTime += allowedTime;
           queNo++;
           resetTimer();
           displayQuestions();
@@ -207,7 +227,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }, 1000);
 
       // Display the answers for the current question
-      queAnswers[queNo].answers.forEach((answer, index) => {
+      queAnswers[queNo].answers.sort(() => Math.random() - 0.5);
+      queAnswers[queNo].answers.forEach((answer) => {
         const ansBtn = document.createElement("input");
         ansBtn.type = "button";
         aDiv.innerHTML = answer;
@@ -232,6 +253,7 @@ document.addEventListener("DOMContentLoaded", () => {
           queNo++;
           timer.innerHTML = "";
           cumulativeTime += allowedTime - timeTracker;
+          isQuizRunning = false;
 
           displayQuestions();
         });
