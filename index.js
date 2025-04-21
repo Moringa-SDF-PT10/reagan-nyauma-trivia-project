@@ -67,8 +67,9 @@ document.addEventListener("DOMContentLoaded", () => {
       alert(err);
     } finally {
       submit.disabled = false;
-      submit.value = 'START QUIZ';
+      submit.value = "START QUIZ";
       isQuizRunning = false;
+      restartBtn.value = "TRY ANOTHER QUIZ"
     }
   });
 
@@ -113,9 +114,12 @@ document.addEventListener("DOMContentLoaded", () => {
   restartBtn.addEventListener("click", () => {
     if (restartBtn.value === "NEW QUIZ") {
       restartBtn.value = "TRY ANOTHER QUIZ";
+      clearInterval(time);
+      queNo = 0;
+      score = 0;
+      cumulativeTime = 0;
       setupDiv.style.zIndex = 50;
     } else {
-      restartBtn.value = "NEW QUIZ";
       restart = 1;
       displayQuestions();
     }
